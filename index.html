@@ -82,17 +82,11 @@
 
     <section id="video">
         <h4>可以在 chrome://webrtc-internals/ 界面查看视频帧率、分辨率</h4>
-        <div id="localVideo">
-            <video playsinline autoplay controls muted></video>
-            <div></div>
-        </div>
-        <div id="remoteVideo">
-            <video playsinline autoplay controls></video>
-            <div></div>
-            <div id="bitrate"></div>
-            <div id="peer"></div>
-        </div>
-        <div id="remoteVideoS"></div>
+        <h1>localPeerConnection ontrack get stream: </h1>
+        <div id="localPeerStreams"></div>
+
+        <h1>remotePeerConnection ontrack get stream: </h1>
+        <div id="remotePeerStreams"></div>
 
         <br>
         <button class="btn-normal video-cancel"  id="connect" onclick=createPeerConnection()>Connect</button>

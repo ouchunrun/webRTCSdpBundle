@@ -7,24 +7,19 @@
  */
 
 'use strict';
-var connectButton = document.querySelector('button#connect');
-var hangupButton = document.querySelector('button#hangup');
-var bitrateDiv = document.querySelector('div#bitrate');
-var peerDiv = document.querySelector('div#peer');
-var senderStatsDiv = document.querySelector('div#senderStats');
-var receiverStatsDiv = document.querySelector('div#receiverStats');
+let connectButton = document.querySelector('button#connect');
+let hangupButton = document.querySelector('button#hangup');
+let bitrateDiv = document.querySelector('div#bitrate');
+let peerDiv = document.querySelector('div#peer');
+let senderStatsDiv = document.querySelector('div#senderStats');
+let receiverStatsDiv = document.querySelector('div#receiverStats');
 
-var localVideo = document.querySelector('div#localVideo video');
-var remoteVideo = document.querySelector('div#remoteVideo video');
-var cameraPrev = document.getElementById('cameraPrev')
-var localVideoStatsDiv = document.querySelector('div#localVideo div');
-var remoteVideoStatsDiv = document.querySelector('div#remoteVideo div');
-
-var localPeerConnection;
-var remotePeerConnection;
-var localStream;
-var bytesPrev;
-var timestampPrev;
+let cameraPrev = document.getElementById('cameraPrev')
+let localPeerConnection;
+let remotePeerConnection;
+let localStream;
+let bytesPrev;
+let timestampPrev;
 
 let constraints = {
     audio: true,
@@ -42,13 +37,13 @@ let isAddNewStream = false
  */
 
 function getUsingDeviceId () {
-    var selectedIndex = document.getElementById('videoList').options.selectedIndex
-    var selectedOption = document.getElementById('videoList').options[selectedIndex]
+    let selectedIndex = document.getElementById('videoList').options.selectedIndex
+    let selectedOption = document.getElementById('videoList').options[selectedIndex]
     return selectedOption.value
 }
 
 async function selectDeviceAndGum(){
-    var deviceId = getUsingDeviceId()
+    let deviceId = getUsingDeviceId()
     console.warn("deviceId: ", deviceId)
     if(deviceId === ""){
         console.warn("请选择有效设备")
@@ -87,8 +82,25 @@ async function addNewStream(stream){
     localPeerConnection.createOffer().then(
         function(desc) {
             console.log('localPeerConnection offering');
-            console.log(`Offer from pc1 ${desc.sdp}`);
-            localPeerConnection.setLocalDescription(desc);
+            console.log(`localPeerConnection.setLocalDescription ${desc.sdp}`);
+            localPeerConnection.setLocalDescription(desc).then(function (){
+                remotePeerConnection.setRemoteDescription(desc);
+                remotePeerConnection.createAnswer().then(
+                    function(desc2) {
+                        remotePeerConnection.setLocalDescription(desc2).then(function (){
+                            console.log('localPeerConnection.setRemoteDescription: ', desc2.sdp);
+                            localPeerConnection.setRemoteDescription(desc2)
+                        }).catch(function (error){
+                            console.error(error)
+                        })
+                    },
+                    function(err) {
+                        console.log(err);
+                    }
+                );
+            }).catch(function (error){
+                console.error(error)
+            })
         },
         function(err) {
             console.log(err);
@@ -107,29 +119,36 @@ async function createPeerConnection(){
     bytesPrev = 0;
     timestampPrev = 0;
     let config = {
-        // sdpSemantics: 'plan-b',
         sdpSemantics: 'unified-plan',
         iceTransportPolicy: 'all',
-        bundlePolicy: 'max-compat'
+        bundlePolicy: 'max-bundle'
     }
+    console.warn("RTCPeerConnection Config: ", JSON.stringify(config, null, '    '))
     localPeerConnection = new RTCPeerConnection(config);
     remotePeerConnection = new RTCPeerConnection(config);
 
-
     localStream = await navigator.mediaDevices.getUserMedia(constraints);
     localPeerConnection.addStream(localStream)
-    localVideo.srcObject = localStream
 
-    let con = {
+    let stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
         video: {
             frameRate: 15,
             width: 1920,
             height: 1080,
         }
-    };
-    let stream = await navigator.mediaDevices.getUserMedia(con);
+    });
     localPeerConnection.addStream(stream)
+
+    let stream2 = await navigator.mediaDevices.getUserMedia( {
+        audio: false,
+        video: {
+            frameRate: 15,
+            width: 640,
+            height: 360,
+        }
+    });
+    remotePeerConnection.addStream(stream2)
 
     console.log('localPeerConnection creating offer');
     localPeerConnection.onnegotiationeeded = function() {
@@ -159,7 +178,7 @@ async function createPeerConnection(){
             console.warn("localPeerConnection 收集完成")
             let desc = localPeerConnection.localDescription
             remotePeerConnection.setRemoteDescription(desc);
-            remotePeerConnection.createAnswer({iceRestart: true}).then(
+            remotePeerConnection.createAnswer().then(
                 function(desc2) {
                     console.log('remotePeerConnection createAnswer complete');
                     remotePeerConnection.setLocalDescription(desc2);
@@ -191,14 +210,13 @@ async function createPeerConnection(){
         }
     };
 
-    remotePeerConnection.ontrack = function(e) {
+    let localPeerStreamArray = []
+    localPeerConnection.ontrack = function(e) {
         if(e.streams[0].getVideoTracks().length) {
-            if (!remoteVideo.srcObject) {
-                console.log('remotePeerConnection got stream ', e.streams[0]);
-                remoteVideo.srcObject = e.streams[0];
-            } else {
-                console.warn("remotePeerConnection get stream: ", e.streams[0])
-                let parent = document.getElementById('remoteVideoS')
+            let stream = e.streams[0]
+            if(!localPeerStreamArray.includes(stream)){
+                console.warn("localPeerConnection get stream: ", e.streams[0])
+                let parent = document.getElementById('localPeerStreams')
                 let video = document.createElement('video')
                 video.id = 'video' + videoIndex
                 video.srcObject = e.streams[0]
@@ -206,6 +224,30 @@ async function createPeerConnection(){
                 video.controls = true
                 parent.appendChild(video)
                 videoIndex++
+                localPeerStreamArray.push(stream)
+            }else {
+                console.log('remotePeerConnection already got this stream ', stream);
+            }
+        }
+    };
+
+    let remotePeerStreamArray = []
+    remotePeerConnection.ontrack = function(e) {
+        if(e.streams[0].getVideoTracks().length) {
+            let stream = e.streams[0]
+            if(!remotePeerStreamArray.includes(stream)){
+                console.warn("remotePeerConnection get stream: ", e.streams[0])
+                let parent = document.getElementById('remotePeerStreams')
+                let video = document.createElement('video')
+                video.id = 'video' + videoIndex
+                video.srcObject = e.streams[0]
+                video.autoplay = true
+                video.controls = true
+                parent.appendChild(video)
+                videoIndex++
+                remotePeerStreamArray.push(stream)
+            }else {
+                console.log('remotePeerConnection already got this stream ', stream);
             }
         }
     };
@@ -228,21 +270,6 @@ function hangup() {
     remotePeerConnection.close();
     window.location.reload();
 
-    // query stats one last time.
-    Promise.all([
-        remotePeerConnection.getStats(null)
-            .then(showRemoteStats, function(err) {
-                console.log(err);
-            }),
-        localPeerConnection.getStats(null)
-            .then(showLocalStats, function(err) {
-                console.log(err);
-            })
-    ]).then(() => {
-        localPeerConnection = null;
-        remotePeerConnection = null;
-    });
-
     localStream.getTracks().forEach(function(track) {
         track.stop();
     });
@@ -251,115 +278,14 @@ function hangup() {
     hangupButton.disabled = true;
 }
 
-function showRemoteStats(results) {
-    var statsString = dumpStats(results);
-
-    receiverStatsDiv.innerHTML = '<h2>Receiver stats</h2>' + statsString;
-    // calculate video bitrate
-    results.forEach(function(report) {
-        var now = report.timestamp;
-
-        var bitrate;
-        if (report.type === 'inbound-rtp' && report.mediaType === 'video') {
-            var bytes = report.bytesReceived;
-            if (timestampPrev) {
-                bitrate = 8 * (bytes - bytesPrev) / (now - timestampPrev);
-                bitrate = Math.floor(bitrate);
-            }
-            bytesPrev = bytes;
-            timestampPrev = now;
-        }
-        if (bitrate) {
-            bitrate += ' kbits/sec';
-            bitrateDiv.innerHTML = '<strong>Bitrate:</strong> ' + bitrate;
-        }
-    });
-
-    // figure out the peer's ip
-    var activeCandidatePair = null;
-    var remoteCandidate = null;
-
-    // Search for the candidate pair, spec-way first.
-    results.forEach(function(report) {
-        if (report.type === 'transport') {
-            activeCandidatePair = results.get(report.selectedCandidatePairId);
-        }
-    });
-    // Fallback for Firefox and Chrome legacy stats.
-    if (!activeCandidatePair) {
-        results.forEach(function(report) {
-            if (report.type === 'candidate-pair' && report.selected || report.type === 'googCandidatePair' && report.googActiveConnection === 'true') {
-                activeCandidatePair = report;
-            }
-        });
-    }
-    if (activeCandidatePair && activeCandidatePair.remoteCandidateId) {
-        remoteCandidate = results.get(activeCandidatePair.remoteCandidateId);
-    }
-    if (remoteCandidate) {
-        if (remoteCandidate.ip && remoteCandidate.port) {
-            peerDiv.innerHTML = '<strong>Connected to:</strong> ' + remoteCandidate.ip + ':' + remoteCandidate.port;
-        } else if (remoteCandidate.ipAddress && remoteCandidate.portNumber) {
-            // Fall back to old names.
-            peerDiv.innerHTML = '<strong>Connected to:</strong> ' + remoteCandidate.ipAddress + ':' + remoteCandidate.portNumber;
-        }
-    }
-}
-
-function showLocalStats(results) {
-    var statsString = dumpStats(results);
-    senderStatsDiv.innerHTML = '<h2>Sender stats</h2>' + statsString;
-}
-// Display statistics
-setInterval(function() {
-    if (localPeerConnection && remotePeerConnection) {
-        remotePeerConnection.getStats(null).then(showRemoteStats, function(err) {
-                console.log(err);
-            });
-        localPeerConnection.getStats(null).then(showLocalStats, function(err) {
-                console.log(err);
-            });
-    } else {
-        // console.log('Not connected yet');
-    }
-    // Collect some stats from the video tags.
-    if (localVideo.videoWidth) {
-        localVideoStatsDiv.innerHTML = '<strong>Video dimensions:</strong> ' +
-            localVideo.videoWidth + 'x' + localVideo.videoHeight + 'px';
-    }
-    if (remoteVideo.videoWidth) {
-        remoteVideoStatsDiv.innerHTML = '<strong>Video dimensions:</strong> ' +
-            remoteVideo.videoWidth + 'x' + remoteVideo.videoHeight + 'px';
-    }
-}, 1000);
-
-// Dumping a stats variable as a string.1
-// might be named toString?
-function dumpStats(results) {
-    var statsString = '';
-    results.forEach(function(res) {
-        statsString += '<h3>Report type=';
-        statsString += res.type;
-        statsString += '</h3>\n';
-        statsString += 'id ' + res.id + '<br>\n';
-        statsString += 'time ' + res.timestamp + '<br>\n';
-        Object.keys(res).forEach(function(k) {
-            if (k !== 'timestamp' && k !== 'type' && k !== 'id') {
-                statsString += k + ': ' + res[k] + '<br>\n';
-            }
-        });
-    });
-    return statsString;
-}
-
 function closeStream() {
     // clear first
-    var stream = cameraPrev.srcObject
+    let stream = cameraPrev.srcObject
     if (stream){
         try {
             stream.oninactive = null;
-            var tracks = stream.getTracks();
-            for (var track in tracks) {
+            let tracks = stream.getTracks();
+            for (let track in tracks) {
                 tracks[track].onended = null;
                 log.info("close stream");
                 tracks[track].stop();
@@ -377,8 +303,8 @@ function closeStream() {
         localStream.getTracks().forEach(function(track) {
             track.stop();
         });
-        var videoTracks = localStream.getVideoTracks();
-        for (var i = 0; i !== videoTracks.length; ++i) {
+        let videoTracks = localStream.getVideoTracks();
+        for (let i = 0; i !== videoTracks.length; ++i) {
             videoTracks[i].stop();
         }
     }
