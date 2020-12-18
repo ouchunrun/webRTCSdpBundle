@@ -18,14 +18,13 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta id="theme-color" name="theme-color" content="#ffffff">
     <script src="js/lib/mediaDevice.js"></script>
-    <script src="js/lib/adapter-latest.js"></script>
-
     <base target="_blank">
     <title>bundle Demo</title>
 
     <link href="//fonts.googleapis.com/css?family=Roboto:300,400,500,700" rel="stylesheet" type="text/css">
     <link rel="stylesheet" href="css/main.css"/>
     <link rel="stylesheet" href="css/index.css"/>
+    <script src="js/lib/sdp_tools.js"></script>
     <script src="js/lib/debug.js"></script>
     <script>
         /******************************************************************************************************/
@@ -90,7 +89,8 @@
 
         <br>
         <button class="btn-normal video-cancel"  id="connect" onclick=createPeerConnection()>Connect</button>
-        <button class="btn-normal video-cancel"  id="addNewStream" onclick=addNewStream()>addNewStream</button>
+        <button class="btn-normal video-cancel"  id="closeLocalVideo" onclick=closeLocalVideo()>closeLocalVideo</button>
+        <button class="btn-normal video-cancel"  id="addNewStream" onclick=remoteAddStream()>remoteAddStream</button>
         <button class="btn-normal video-cancel"  id="hangup" onclick=hangup()>Hang Up</button>
     </section>
 
@@ -99,6 +99,7 @@
         <div id="receiverStats"></div>
     </section>
 </div>
+<script src="./js/lib/sdp.js"></script>
 <script src="main.js"></script>
 <script src="index.js"></script>
 </body>
